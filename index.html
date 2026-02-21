@@ -18,7 +18,7 @@
       background: linear-gradient(135deg, var(--bg), #1a1a2e);
       color: var(--text);
       min-height: 100vh;
-      padding: 16px 16px 110px 16px;
+      padding: 16px 16px 200px 16px; /* extra bottom space */
       box-sizing: border-box;
     }
     h1 {
@@ -71,64 +71,11 @@
       box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     }
 
-    .slider-container {
-      margin: 18px 0;
-    }
-    label {
-      display: block;
-      font-weight: 500;
-      margin-bottom: 6px;
-      font-size: 0.92rem;
-    }
-    input[type="range"] {
-      width: 100%;
-      accent-color: var(--accent);
-    }
-
-    #log-container {
-      height: 300px;
-      overflow-y: auto;
-      background: linear-gradient(to bottom, rgba(20,20,40,0.85), rgba(15,15,35,0.85));
-      border-radius: 16px;
-      padding: 20px 16px;
-      font-family: 'Courier New', monospace;
-      font-size: 1rem;
-      line-height: 1.7;
-      border: 1px solid rgba(124,94,255,0.12);
-      box-shadow: inset 0 2px 12px rgba(0,0,0,0.6);
-    }
-
-    .log-entry {
-      padding: 8px 0 8px 12px;
-      border-left: 4px solid;
-      margin-bottom: 12px;
-      background: rgba(0,0,0,0.15);
-      border-radius: 6px;
-    }
-
-    .log-timestamp {
-      color: #a0a0c0;
-      font-weight: bold;
-      margin-right: 6px;
-    }
-
-    .log-certainty-high   { border-left-color: #00ffaa; }
-    .log-certainty-medium { border-left-color: #ffcc00; }
-    .log-certainty-low    { border-left-color: #ff6666; }
-
-    #clear-log-btn {
-      background: rgba(255,100,100,0.7);
-      margin-top: 12px;
-      padding: 8px 16px;
-      font-size: 0.85rem;
-    }
-    #clear-log-btn:hover { background: rgba(255,80,80,0.9); }
-
     #tips {
       font-size: 0.82rem;
       color: #a0a0c0;
       text-align: center;
-      margin: 20px 0 100px;
+      margin: 20px 0 180px; /* more room for floating button */
     }
 
     #ad-banner {
@@ -147,13 +94,58 @@
       color: #aaa;
       z-index: 1000;
       box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+      transition: opacity 0.3s ease;
+    }
+    #settings-sheet.open \~ #ad-banner {
+      display: none; /* hide banner when settings open */
     }
     #ad-banner .placeholder-text {
       opacity: 0.7;
       font-style: italic;
     }
 
-    #chart-fullscreen {
+    /* Floating settings button */
+    #settings-fab {
+      position: fixed;
+      bottom: 110px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #5a3aff);
+      color: white;
+      font-size: 1.6rem;
+      box-shadow: 0 4px 20px rgba(124,94,255,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 999;
+      transition: transform 0.2s;
+    }
+    #settings-fab:hover { transform: scale(1.1); }
+
+    /* Bottom sheet for sliders */
+    #settings-sheet {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border-top-left-radius: 24px;
+      border-top-right-radius: 24px;
+      padding: 24px 20px 40px;
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.6);
+      transform: translateY(100%);
+      transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+      z-index: 998;
+    }
+    #settings-sheet.open {
+      transform: translateY(0);
+    }
+
+    #chart-fullscreen, #log-fullscreen {
       display: none;
       position: fixed;
       inset: 0;
@@ -162,11 +154,11 @@
       padding: 16px 16px 100px 16px;
       box-sizing: border-box;
     }
-    #chart-fullscreen canvas {
+    #chart-fullscreen canvas, #log-fullscreen #log-full-content {
       width: 100%;
       height: calc(100% - 80px) !important;
     }
-    #fullscreen-close {
+    .close-btn-bottom {
       position: absolute;
       bottom: 20px;
       left: 50%;
@@ -178,15 +170,27 @@
       border-radius: 12px;
     }
 
-    #video, #canvas, #chart-container { display: none; }
+    #clear-log-full-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(255,100,100,0.6);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      z-index: 10001;
+      cursor: pointer;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+    #clear-log-full-btn:hover {
+      opacity: 1;
+      background: rgba(255,80,80,0.95);
+    }
 
-    .main-content {
-      transition: opacity 0.4s ease;
-    }
-    #chart-fullscreen.active \~ .main-content,
-    #chart-fullscreen[style*="block"] \~ .main-content {
-      display: none !important;
-    }
+    #video, #canvas, #chart-container { display: none; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
@@ -204,29 +208,34 @@
     <div id="current-brightness">Current Brightness: —</div>
 
     <div class="card">
-      <div id="log-container">Monitoring log (newest first)</div>
-      <button id="clear-log-btn">Clear Log</button>
-    </div>
-
-    <div class="card">
-      <div class="slider-container">
-        <label>Flash Sensitivity <span id="brightnessValue">30</span></label>
-        <input type="range" id="brightnessSlider" min="10" max="100" value="30" step="5">
-      </div>
-      <div class="slider-container">
-        <label>Thunder Threshold <span id="audioValue">55</span></label>
-        <input type="range" id="audioSlider" min="20" max="120" value="55" step="5">
-      </div>
-      <div class="slider-container">
-        <label>Min Certainty to Log <span id="logThresholdValue">30</span>%</label>
-        <input type="range" id="logThresholdSlider" min="0" max="100" value="30" step="5">
-      </div>
+      <button id="view-log-btn">View Log</button>
     </div>
 
     <p id="tips">Real-time lightning detection • Flash-to-thunder distance estimate • Settings saved automatically</p>
 
     <div id="ad-banner">
       <div class="placeholder-text">Sponsored Space – Your ad here</div>
+    </div>
+
+    <!-- Floating settings button (toggles open/close) -->
+    <div id="settings-fab" onclick="toggleSettings()">⚙</div>
+
+    <!-- Bottom sheet for sliders -->
+    <div id="settings-sheet">
+      <h3 style="margin-top:0; text-align:center;">Detection Sensitivity</h3>
+
+      <div class="slider-container">
+        <label>Flash Sensitivity <span id="brightnessValue">30</span> (higher = more sensitive)</label>
+        <input type="range" id="brightnessSlider" min="10" max="100" value="30" step="5">
+      </div>
+      <div class="slider-container">
+        <label>Thunder Sensitivity <span id="audioValue">55</span> (higher = more sensitive)</label>
+        <input type="range" id="audioSlider" min="20" max="120" value="55" step="5">
+      </div>
+      <div class="slider-container">
+        <label>Min Certainty to Log <span id="logThresholdValue">30</span>% (higher = stricter logging)</label>
+        <input type="range" id="logThresholdSlider" min="0" max="100" value="30" step="5">
+      </div>
     </div>
   </div>
 
@@ -236,7 +245,13 @@
 
   <div id="chart-fullscreen">
     <canvas id="sensorChartFull"></canvas>
-    <button id="fullscreen-close">Close Graph</button>
+    <button id="fullscreen-close" class="close-btn-bottom">Close Graph</button>
+  </div>
+
+  <div id="log-fullscreen">
+    <div id="log-full-content" style="overflow-y:auto; height:calc(100% - 80px); padding:60px 16px 16px 16px; font-family:'Courier New',monospace; font-size:1rem; line-height:1.7;"></div>
+    <button id="clear-log-full-btn" onclick="clearFullLog()">Clear</button>
+    <button id="full-log-close" class="close-btn-bottom">Close Log</button>
   </div>
 
   <script>
@@ -245,11 +260,14 @@
     const ctx = canvas.getContext('2d');
     const status = document.getElementById('status');
     const brightnessDisplay = document.getElementById('current-brightness');
-    const logContainer = document.getElementById('log-container');
     const toggleBtn = document.getElementById('toggleBtn');
     const fullscreenBtn = document.getElementById('fullscreen-btn');
-    const clearLogBtn = document.getElementById('clear-log-btn');
+    const viewLogBtn = document.getElementById('view-log-btn');
+    const settingsFab = document.getElementById('settings-fab');
+    const settingsSheet = document.getElementById('settings-sheet');
     const chartFullscreen = document.getElementById('chart-fullscreen');
+    const logFullscreen = document.getElementById('log-fullscreen');
+    const logFullContent = document.getElementById('log-full-content');
 
     let stream = null;
     let audioCtx = null;
@@ -262,12 +280,31 @@
     let lastFlashTime = null;
     let isMonitoring = false;
 
+    // Log entries stored in memory
+    let logEntries = [];
+
+    function addLogEntry(msg, certainty) {
+      if (certainty < logThreshold) return;
+      const time = new Date().toLocaleTimeString('en-ZA', {hour12: false});
+      const certaintyClass = certainty >= 80 ? 'high' : certainty >= 50 ? 'medium' : 'low';
+      
+      const entry = `
+        <div class="log-entry log-certainty-${certaintyClass}">
+          <span class="log-timestamp">[${time}]</span>
+          ${msg}
+          <span style="float:right; font-weight:bold;">${Math.round(certainty)}%</span>
+        </div>
+      `;
+      logEntries.push(entry);
+      if (logEntries.length > 200) logEntries.shift();
+    }
+
     // Load saved settings
-    brightnessThreshold = localStorage.getItem('flashSensitivity') !== null 
+    let brightnessThreshold = localStorage.getItem('flashSensitivity') !== null 
       ? parseInt(localStorage.getItem('flashSensitivity')) : 30;
-    audioThreshold = localStorage.getItem('thunderThreshold') !== null 
+    let audioThreshold = localStorage.getItem('thunderThreshold') !== null 
       ? parseInt(localStorage.getItem('thunderThreshold')) : 55;
-    logThreshold = localStorage.getItem('logCertainty') !== null 
+    let logThreshold = localStorage.getItem('logCertainty') !== null 
       ? parseInt(localStorage.getItem('logCertainty')) : 30;
 
     document.getElementById('brightnessSlider').value = brightnessThreshold;
@@ -295,33 +332,36 @@
       localStorage.setItem('logCertainty', logThreshold);
     };
 
-    clearLogBtn.onclick = () => {
-      logContainer.innerHTML = 'Log cleared.<br>';
+    // Toggle settings sheet with same button
+    function toggleSettings() {
+      settingsSheet.classList.toggle('open');
+    }
+
+    // View full log
+    viewLogBtn.onclick = () => {
+      document.getElementById('log-full-content').innerHTML = logEntries.join('') || 'No events logged yet.<br>';
+      logFullscreen.style.display = 'block';
+      document.querySelector('.main-content').style.display = 'none';
     };
+
+    // Close full log
+    document.getElementById('full-log-close').onclick = () => {
+      logFullscreen.style.display = 'none';
+      document.querySelector('.main-content').style.display = '';
+    };
+
+    // Clear log (only in full-screen)
+    function clearFullLog() {
+      logEntries = [];
+      document.getElementById('log-full-content').innerHTML = 'Log cleared.<br>';
+    }
 
     const flashWindowMs = 15000;
     const historyDuration = 10 * 60 * 1000;
     const sampleInterval = 1000;
-    const statusCooldown = 3000;
 
     let recentFlashes = [];
     let sensorData = { timestamps: [], brightness: [], audioLevels: [], hits: [] };
-
-    function addLogEntry(msg, certainty) {
-      if (certainty < logThreshold) return;
-      const time = new Date().toLocaleTimeString('en-ZA', {hour12: false});
-      const certaintyClass = certainty >= 80 ? 'high' : certainty >= 50 ? 'medium' : 'low';
-      
-      const entry = `
-        <div class="log-entry log-certainty-${certaintyClass}">
-          <span class="log-timestamp">[${time}]</span>
-          ${msg}
-          <span style="float:right; font-weight:bold;">${Math.round(certainty)}%</span>
-        </div>
-      `;
-      logContainer.innerHTML = entry + logContainer.innerHTML;
-      logContainer.scrollTop = 0;
-    }
 
     const chartConfig = {
       type: 'line',
@@ -406,16 +446,14 @@
       }
     };
 
-    fullscreenBtn.onclick = () => {
+    document.getElementById('fullscreen-btn').onclick = () => {
       chartFullscreen.style.display = 'block';
-      // Hide main content completely
       document.querySelector('.main-content').style.display = 'none';
       if (myChartFull) myChartFull.update();
     };
 
     document.getElementById('fullscreen-close').onclick = () => {
       chartFullscreen.style.display = 'none';
-      // Show main content again
       document.querySelector('.main-content').style.display = '';
     };
 
@@ -483,7 +521,7 @@
       sensorData.timestamps.push(now);
       sensorData.brightness.push(prevBrightness);
       sensorData.audioLevels.push(maxAudio);
-       sensorData.hits.push(isHit ? Math.max(prevBrightness, maxAudio) : null);
+      sensorData.hits.push(isHit ? Math.max(prevBrightness, maxAudio) : null);
 
       if (myChart) myChart.update();
       if (myChartFull && chartFullscreen.style.display !== 'none') myChartFull.update();
