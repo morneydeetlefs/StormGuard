@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StormGuard – Graph</title>
+  <style>
+    body { margin:0; padding:0; background:#0f0f17; height:100vh; overflow:hidden; }
+    #chart-container { height: calc(100% - 80px); width:100%; }
+    button { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:100; }
+    #ad-banner {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 70px;
+      background: linear-gradient(180deg, rgba(20,20,40,0.9), rgba(10,10,30,0.95));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #aaa;
+      z-index: 1000;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+  <div id="chart-container">
+    <canvas id="sensorChart"></canvas>
+  </div>
+
+  <button onclick="window.location.href='index.html'">Back to Monitor</button>
+
+  <div id="ad-banner">
+    <div class="placeholder-text">Sponsored Space – Your ad here</div>
+  </div>
+
+  <script>
+    const sensorData = JSON.parse(localStorage.getItem('sensorData') || '{"timestamps":[],"brightness":[],"audioLevels":[],"hits":[]}');
+
+    const ctx = document.getElementById('sensorChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: sensorData.timestamps,
+        datasets: [
+          { label: 'Brightness', data: sensorData.brightness, borderColor: '#7c5eff', yAxisID: 'y' },
+          { label: 'Audio Peak', data: sensorData.audioLevels, borderColor: '#00d4b4', yAxisID: 'y' },
+          { label: 'Hit', data: sensorData.hits, type: 'scatter', pointStyle: 'triangle', pointRadius: 10, borderColor: '#ff4d6d', backgroundColor: '#ff4d6d', yAxisID: 'y' }
+        ]
+      },
+      options: {
+        scales: {
+          x: { type: 'time', time: { unit: 'minute' } },
+          y: { beginAtZero: true, max: 255 }
+        },
+        plugins: { legend: { labels: { color: '#e0e0ff' } } },
+        maintainAspectRatio: false
+      }
+    });
+  </script>
+</body>
+</html>
