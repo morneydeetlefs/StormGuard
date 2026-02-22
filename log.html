@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StormGuard – Full Log</title>
+  <style>
+    :root { --bg: #0f0f17; --text: #e0e0ff; }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--bg), #1a1a2e);
+      color: var(--text);
+      font-family: 'Courier New', monospace;
+      min-height: 100vh;
+    }
+    h1 { text-align: center; }
+    #log-content {
+      background: rgba(20,20,40,0.85);
+      border-radius: 12px;
+      padding: 16px;
+      max-height: 80vh;
+      overflow-y: auto;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .log-entry { margin-bottom: 12px; padding: 10px; border-radius: 6px; background: rgba(0,0,0,0.2); }
+    #ad-banner {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 70px;
+      background: linear-gradient(180deg, rgba(20,20,40,0.9), rgba(10,10,30,0.95));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #aaa;
+      z-index: 1000;
+    }
+    button { margin: 20px auto; display: block; }
+  </style>
+</head>
+<body>
+  <h1>Full Log</h1>
+
+  <div id="log-content"></div>
+
+  <button onclick="window.location.href='index.html'">Back to Monitor</button>
+
+  <div id="ad-banner">
+    <div class="placeholder-text">Sponsored Space – Your ad here</div>
+  </div>
+
+  <script>
+    const logs = JSON.parse(localStorage.getItem('logEntries') || '[]');
+    document.getElementById('log-content').innerHTML = logs.join('') || '<p style="text-align:center; color:#a0a0c0;">No events logged yet.</p>';
+  </script>
+</body>
+</html>
