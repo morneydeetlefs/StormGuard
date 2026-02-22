@@ -23,7 +23,7 @@
       background: linear-gradient(135deg, var(--bg), #1a1a2e);
       color: var(--text);
       min-height: 100vh;
-      padding: var(--spacing-sm) var(--spacing-sm) 120px;
+      padding: var(--spacing-sm) var(--spacing-sm) 140px;
       font-size: clamp(14px, 3.5vw, 16px);
       line-height: 1.5;
     }
@@ -182,11 +182,72 @@
     input:checked + .slider { background-color: var(--accent); }
     input:checked + .slider:before { transform: translateX(22px); }
 
-    #chart-container {
-      height: 300px; /* give it space so Chart.js can size properly */
-      width: 100%;
+    /* ────────────────────────────────────────────────
+       IMPROVED LOG STYLING – newest on top, right border, inverted severity
+    ──────────────────────────────────────────────── */
+    #log-container,
+    #log-full-content {
+      background: rgba(20, 20, 40, 0.85);
+      border-radius: 12px;
+      padding: 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      max-height: 400px;
+      overflow-y: auto;
+      border: 1px solid rgba(124, 94, 255, 0.15);
       margin: 16px 0;
     }
+
+    .log-entry {
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border-right: 6px solid;           /* right border for inverted look */
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.25);
+      position: relative;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .log-timestamp {
+      color: #b0b0d0;
+      font-weight: bold;
+      margin-right: 10px;
+      font-size: 0.92rem;
+    }
+
+    /* Inverted severity: high = red (urgent), low = green (mild) */
+    .log-certainty-high {
+      border-right-color: #ef4444;          /* vivid red – highest concern */
+      background: rgba(239, 68, 68, 0.15);
+    }
+    .log-certainty-medium {
+      border-right-color: #f59e0b;          /* amber/orange */
+      background: rgba(245, 158, 11, 0.12);
+    }
+    .log-certainty-low {
+      border-right-color: #22c55e;          /* green – lowest concern */
+      background: rgba(34, 197, 94, 0.08);
+    }
+
+    .log-message {
+      color: #e0e0ff;
+      word-break: break-word;
+    }
+
+    .log-certainty-badge {
+      float: right;
+      font-weight: bold;
+      font-size: 0.9rem;
+      padding: 3px 9px;
+      border-radius: 12px;
+      color: white;
+      margin-top: 2px;
+    }
+
+    .high-badge   { background: #ef4444; }
+    .medium-badge { background: #f59e0b; }
+    .low-badge    { background: #22c55e; }
 
     #chart-fullscreen, #log-fullscreen {
       display: none;
@@ -258,8 +319,11 @@
     <div id="current-brightness">Current Brightness: —</div>
 
     <div class="card">
-      <button id="view-log-btn">View Log</button>
+      <button id="view-log-btn">View Full Log</button>
     </div>
+
+    <!-- Small always-visible log preview (latest entries) -->
+    <div id="log-container"></div>
 
     <p id="tips">Real-time lightning detection • Flash-to-thunder distance estimate • Settings saved automatically</p>
 
@@ -310,8 +374,8 @@
   </div>
 
   <div id="log-fullscreen">
-    <div id="log-full-content" style="overflow-y:auto; height:calc(100% - 80px); padding:60px 16px 16px 16px; font-family:'Courier New',monospace; font-size:1rem; line-height:1.7;"></div>
-    <button id="clear-log-full-btn" onclick="clearFullLog()">Clear</button>
+    <div id="log-full-content"></div>
+    <button id="clear-log-full-btn" onclick="clearFullLog()">Clear Log</button>
     <button id="full-log-close" class="close-btn-bottom">Close Log</button>
   </div>
 
@@ -333,6 +397,7 @@
     const chartFullscreen = document.getElementById('chart-fullscreen');
     const logFullscreen   = document.getElementById('log-fullscreen');
     const logFullContent  = document.getElementById('log-full-content');
+    const logContainer    = document.getElementById('log-container');
     const cameraToggle    = document.getElementById('cameraToggle');
 
     let stream = null;
@@ -343,33 +408,10 @@
     let prevBrightness = 0;
     let lastFlashTime = null;
     let isMonitoring = false;
-    let logEntries = [];
-
-    let recentFlashes = [];
-    let sensorData = { timestamps: [], brightness: [], audioLevels: [], hits: [] };
-
-    const chartConfig = {
-      type: 'line',
-      data: {
-        labels: sensorData.timestamps,
-        datasets: [
-          { label: 'Brightness', data: sensorData.brightness, borderColor: '#7c5eff', yAxisID: 'y' },
-          { label: 'Audio Peak', data: sensorData.audioLevels, borderColor: '#00d4b4', yAxisID: 'y' },
-          { label: 'Hit', data: sensorData.hits, type: 'scatter', pointStyle: 'triangle', pointRadius: 10, borderColor: '#ff4d6d', backgroundColor: '#ff4d6d', yAxisID: 'y' }
-        ]
-      },
-      options: {
-        scales: {
-          x: { type: 'time', time: { unit: 'minute' } },
-          y: { beginAtZero: true, max: 255 }
-        },
-        plugins: { legend: { display: true, labels: { color: '#e0e0ff' } } },
-        maintainAspectRatio: false
-      }
-    };
+    let logEntries = []; // stores HTML strings, newest first
 
     // ──────────────────────────────────────────────────────────────
-    // Settings load/save
+    // Settings
     // ──────────────────────────────────────────────────────────────
     let brightnessThreshold = localStorage.getItem('flashSensitivity') !== null ? parseInt(localStorage.getItem('flashSensitivity')) : 30;
     let audioThreshold      = localStorage.getItem('thunderThreshold') !== null ? parseInt(localStorage.getItem('thunderThreshold')) : 55;
@@ -385,6 +427,7 @@
     document.getElementById('logThresholdSlider').value = logThreshold;
     document.getElementById('logThresholdValue').textContent = logThreshold;
 
+    // Save handlers
     document.getElementById('brightnessSlider').oninput = e => {
       brightnessThreshold = +e.target.value;
       document.getElementById('brightnessValue').textContent = brightnessThreshold;
@@ -406,22 +449,47 @@
     };
 
     // ──────────────────────────────────────────────────────────────
-    // Logging
+    // Log system – newest on top, right border, inverted severity
     // ──────────────────────────────────────────────────────────────
     function addLogEntry(msg, certainty) {
       if (certainty < logThreshold) return;
-      const time = new Date().toLocaleTimeString('en-ZA', {hour12: false});
+
+      const time = new Date().toLocaleTimeString('en-ZA', { hour12: false });
       const certaintyClass = certainty >= 80 ? 'high' : certainty >= 50 ? 'medium' : 'low';
+      const badgeClass = certaintyClass + '-badge';
+
+      let icon = '⚡';
+      if (msg.includes('strike detected')) icon = '🌩️';
+      else if (msg.includes('Flash')) icon = '⚡';
+      else if (msg.includes('Thunder')) icon = '🔊';
 
       const entry = `
         <div class="log-entry log-certainty-${certaintyClass}">
           <span class="log-timestamp">[${time}]</span>
-          ${msg}
-          <span style="float:right; font-weight:bold;">${Math.round(certainty)}%</span>
+          <span class="log-message">${icon} ${msg}</span>
+          <span class="log-certainty-badge ${badgeClass}">${Math.round(certainty)}%</span>
         </div>
       `;
-      logEntries.push(entry);
-      if (logEntries.length > 200) logEntries.shift();
+
+      logEntries.unshift(entry); // newest first
+
+      if (logEntries.length > 200) logEntries.pop();
+
+      updateLogDisplays();
+    }
+
+    function updateLogDisplays() {
+      const html = logEntries.join('') || '<div style="color:#a0a0c0; text-align:center; padding:20px;">No events logged yet.</div>';
+
+      if (logContainer) {
+        logContainer.innerHTML = html;
+        logContainer.scrollTop = 0;
+      }
+
+      if (logFullContent) {
+        logFullContent.innerHTML = html;
+        logFullContent.scrollTop = 0;
+      }
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -433,7 +501,7 @@
     }
 
     viewLogBtn.onclick = () => {
-      logFullContent.innerHTML = logEntries.join('') || 'No events logged yet.<br>';
+      updateLogDisplays();
       logFullscreen.style.display = 'block';
       document.querySelector('.main-content').style.display = 'none';
     };
@@ -445,12 +513,32 @@
 
     function clearFullLog() {
       logEntries = [];
-      logFullContent.innerHTML = 'Log cleared.<br>';
+      updateLogDisplays();
     }
 
     // ──────────────────────────────────────────────────────────────
-    // Chart helpers
+    // Chart config & helpers (unchanged from working version)
     // ──────────────────────────────────────────────────────────────
+    const chartConfig = {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Brightness', data: [], borderColor: '#7c5eff', yAxisID: 'y' },
+          { label: 'Audio Peak', data: [], borderColor: '#00d4b4', yAxisID: 'y' },
+          { label: 'Hit', data: [], type: 'scatter', pointStyle: 'triangle', pointRadius: 10, borderColor: '#ff4d6d', backgroundColor: '#ff4d6d', yAxisID: 'y' }
+        ]
+      },
+      options: {
+        scales: {
+          x: { type: 'time', time: { unit: 'minute' } },
+          y: { beginAtZero: true, max: 255 }
+        },
+        plugins: { legend: { display: true, labels: { color: '#e0e0ff' } } },
+        maintainAspectRatio: false
+      }
+    };
+
     function safeCreateChart(canvasId, config) {
       const canvas = document.getElementById(canvasId);
       if (!canvas || !canvas.isConnected) return null;
@@ -500,7 +588,7 @@
           toggleBtn.disabled = false;
           isMonitoring = true;
 
-          initCharts(); // create main chart now that monitoring is active
+          initCharts();
           setInterval(sampleAndUpdate, 1000);
           requestAnimationFrame(monitorFrame);
         } catch (err) {
@@ -536,9 +624,7 @@
       if (myChartFull) myChartFull.destroy();
       myChartFull = safeCreateChart('sensorChartFull', chartConfig);
 
-      if (myChartFull) {
-        forceChartResize(myChartFull);
-      }
+      if (myChartFull) forceChartResize(myChartFull);
     };
 
     document.getElementById('fullscreen-close').onclick = () => {
@@ -552,7 +638,7 @@
     };
 
     // ──────────────────────────────────────────────────────────────
-    // Video brightness detection
+    // Video frame analysis
     // ──────────────────────────────────────────────────────────────
     function monitorFrame() {
       if (!stream) return;
@@ -576,7 +662,7 @@
     }
 
     // ──────────────────────────────────────────────────────────────
-    // Audio sampling & update graph
+    // Audio sampling & update
     // ──────────────────────────────────────────────────────────────
     function sampleAndUpdate() {
       if (!analyser) return;
@@ -611,7 +697,6 @@
         addLogEntry(msg, certainty);
       }
 
-      // Maintain rolling history
       while (sensorData.timestamps.length && now - sensorData.timestamps[0] > 10*60*1000) {
         sensorData.timestamps.shift();
         sensorData.brightness.shift();
@@ -624,9 +709,7 @@
       sensorData.audioLevels.push(maxAudio);
       sensorData.hits.push(isHit ? Math.max(prevBrightness, maxAudio) : null);
 
-      if (myChart) {
-        myChart.update();
-      }
+      if (myChart) myChart.update();
       if (myChartFull && chartFullscreen.style.display === 'block') {
         forceChartResize(myChartFull);
       }
