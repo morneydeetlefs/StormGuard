@@ -94,7 +94,6 @@
       color: #aaa;
       z-index: 1000;
       box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
-      transition: height 0.3s ease, opacity 0.3s ease;
     }
     #ad-banner .placeholder-text { opacity: 0.7; font-style: italic; }
 
@@ -418,6 +417,18 @@
     }
 
     // ──────────────────────────────────────────────────────────────
+    // Chart safety wrapper
+    // ──────────────────────────────────────────────────────────────
+    function safeCreateChart(canvasId, config) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || !canvas.isConnected || canvas.offsetParent === null) {
+        console.warn(`Canvas ${canvasId} not ready/attached/visible — skipping chart creation`);
+        return null;
+      }
+      return new Chart(canvas, config);
+    }
+
+    // ──────────────────────────────────────────────────────────────
     // Core logic constants & data
     // ──────────────────────────────────────────────────────────────
     const flashWindowMs = 15000;
@@ -448,9 +459,7 @@
 
     function initCharts() {
       if (myChart) myChart.destroy();
-      myChart = new Chart(document.getElementById('sensorChart'), chartConfig);
-      if (myChartFull) myChartFull.destroy();
-      myChartFull = new Chart(document.getElementById('sensorChartFull'), chartConfig);
+      myChart = safeCreateChart('sensorChart', chartConfig);
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -508,19 +517,36 @@
       }
     };
 
+    // ──────────────────────────────────────────────────────────────
+    // Fullscreen graph (cleaner + hardened approach)
+    // ──────────────────────────────────────────────────────────────
     fullscreenBtn.onclick = () => {
       chartFullscreen.style.display = 'block';
       document.querySelector('.main-content').style.display = 'none';
-      if (myChartFull) myChartFull.update();
+
+      // Create fresh chart only after container is visible
+      if (myChartFull) myChartFull.destroy();
+      myChartFull = safeCreateChart('sensorChartFull', chartConfig);
+
+      if (myChartFull) {
+        myChartFull.update();
+      } else {
+        console.warn('Fullscreen chart creation skipped – canvas not ready');
+      }
     };
 
     document.getElementById('fullscreen-close').onclick = () => {
       chartFullscreen.style.display = 'none';
       document.querySelector('.main-content').style.display = '';
+
+      if (myChartFull) {
+        myChartFull.destroy();
+        myChartFull = null;
+      }
     };
 
     // ──────────────────────────────────────────────────────────────
-    // Video frame analysis (brightness detection)
+    // Video frame analysis
     // ──────────────────────────────────────────────────────────────
     function monitorFrame() {
       if (!stream) return;
@@ -544,7 +570,7 @@
     }
 
     // ──────────────────────────────────────────────────────────────
-    // Audio sampling & lightning/thunder detection
+    // Audio sampling & lightning detection
     // ──────────────────────────────────────────────────────────────
     function sampleAndUpdate() {
       if (!analyser) return;
@@ -579,7 +605,6 @@
         addLogEntry(msg, certainty);
       }
 
-      // Keep history bounded
       while (sensorData.timestamps.length && now - sensorData.timestamps[0] > historyDuration) {
         sensorData.timestamps.shift();
         sensorData.brightness.shift();
@@ -593,7 +618,9 @@
       sensorData.hits.push(isHit ? Math.max(prevBrightness, maxAudio) : null);
 
       if (myChart) myChart.update();
-      if (myChartFull && chartFullscreen.style.display !== 'none') myChartFull.update();
+      if (myChartFull && chartFullscreen.style.display !== 'none') {
+        myChartFull.update();
+      }
     }
   </script>
 </body>
