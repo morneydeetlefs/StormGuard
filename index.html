@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <title>StormGuard – Lightning Monitor </title>
+  <title>StormGuard – Lightning Monitor</title>
   <style>
     :root {
       --bg: #0f0f17;
@@ -182,9 +182,7 @@
     input:checked + .slider { background-color: var(--accent); }
     input:checked + .slider:before { transform: translateX(22px); }
 
-    /* ────────────────────────────────────────────────
-       IMPROVED LOG STYLING – newest on top, right border, inverted severity
-    ──────────────────────────────────────────────── */
+    /* Log styling – right border, inverted severity */
     #log-container,
     #log-full-content {
       background: rgba(20, 20, 40, 0.85);
@@ -202,10 +200,9 @@
     .log-entry {
       margin-bottom: 16px;
       padding: 12px 14px;
-      border-right: 6px solid;           /* right border for inverted look */
+      border-right: 6px solid;
       border-radius: 8px;
       background: rgba(0, 0, 0, 0.25);
-      position: relative;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }
 
@@ -216,24 +213,11 @@
       font-size: 0.92rem;
     }
 
-    /* Inverted severity: high = red (urgent), low = green (mild) */
-    .log-certainty-high {
-      border-right-color: #ef4444;          /* vivid red – highest concern */
-      background: rgba(239, 68, 68, 0.15);
-    }
-    .log-certainty-medium {
-      border-right-color: #f59e0b;          /* amber/orange */
-      background: rgba(245, 158, 11, 0.12);
-    }
-    .log-certainty-low {
-      border-right-color: #22c55e;          /* green – lowest concern */
-      background: rgba(34, 197, 94, 0.08);
-    }
+    .log-certainty-high   { border-right-color: #ef4444; background: rgba(239, 68, 68, 0.15); }
+    .log-certainty-medium { border-right-color: #f59e0b; background: rgba(245, 158, 11, 0.12); }
+    .log-certainty-low    { border-right-color: #22c55e; background: rgba(34, 197, 94, 0.08); }
 
-    .log-message {
-      color: #e0e0ff;
-      word-break: break-word;
-    }
+    .log-message { color: #e0e0ff; word-break: break-word; }
 
     .log-certainty-badge {
       float: right;
@@ -295,6 +279,12 @@
 
     #video, #canvas { display: none; }
 
+    #chart-container {
+      height: 300px;
+      width: 100%;
+      margin: 16px 0;
+    }
+
     @media (min-width: 480px) {
       body { padding: 16px 16px 140px; }
       #ad-banner { height: 80px; }
@@ -322,7 +312,6 @@
       <button id="view-log-btn">View Full Log</button>
     </div>
 
-    <!-- Small always-visible log preview (latest entries) -->
     <div id="log-container"></div>
 
     <p id="tips">Real-time lightning detection • Flash-to-thunder distance estimate • Settings saved automatically</p>
@@ -380,346 +369,346 @@
   </div>
 
   <script>
-  // ──────────────────────────────────────────────────────────────
-  // Global variables – declared FIRST so they are available everywhere
-  // ──────────────────────────────────────────────────────────────
-  let stream = null;
-  let audioCtx = null;
-  let analyser = null;
-  let myChart = null;
-  let myChartFull = null;
-  let prevBrightness = 0;
-  let lastFlashTime = null;
-  let isMonitoring = false;
-  let logEntries = [];
-  let recentFlashes = [];                          // ← moved here (fix for ReferenceError)
-  let sensorData = { timestamps: [], brightness: [], audioLevels: [], hits: [] };
+    // ──────────────────────────────────────────────────────────────
+    // Global variables – declared FIRST
+    // ──────────────────────────────────────────────────────────────
+    let stream = null;
+    let audioCtx = null;
+    let analyser = null;
+    let myChart = null;
+    let myChartFull = null;
+    let prevBrightness = 0;
+    let lastFlashTime = null;
+    let isMonitoring = false;
+    let logEntries = [];
+    let recentFlashes = [];
+    let sensorData = { timestamps: [], brightness: [], audioLevels: [], hits: [] };
+    let analysisInterval = null;
 
-  // ──────────────────────────────────────────────────────────────
-  // Element references
-  // ──────────────────────────────────────────────────────────────
-  const video           = document.getElementById('video');
-  const canvas          = document.getElementById('canvas');
-  const ctx             = canvas.getContext('2d', { willReadFrequently: true });
-  const status          = document.getElementById('status');
-  const brightnessDisplay = document.getElementById('current-brightness');
-  const toggleBtn       = document.getElementById('toggleBtn');
-  const fullscreenBtn   = document.getElementById('fullscreen-btn');
-  const viewLogBtn      = document.getElementById('view-log-btn');
-  const settingsFab     = document.getElementById('settings-fab');
-  const settingsSheet   = document.getElementById('settings-sheet');
-  const adBanner        = document.getElementById('ad-banner');
-  const chartFullscreen = document.getElementById('chart-fullscreen');
-  const logFullscreen   = document.getElementById('log-fullscreen');
-  const logFullContent  = document.getElementById('log-full-content');
-  const logContainer    = document.getElementById('log-container');
-  const cameraToggle    = document.getElementById('cameraToggle');
+    // ──────────────────────────────────────────────────────────────
+    // Element references
+    // ──────────────────────────────────────────────────────────────
+    const video           = document.getElementById('video');
+    const canvas          = document.getElementById('canvas');
+    const ctx             = canvas.getContext('2d', { willReadFrequently: true });
+    const status          = document.getElementById('status');
+    const brightnessDisplay = document.getElementById('current-brightness');
+    const toggleBtn       = document.getElementById('toggleBtn');
+    const fullscreenBtn   = document.getElementById('fullscreen-btn');
+    const viewLogBtn      = document.getElementById('view-log-btn');
+    const settingsFab     = document.getElementById('settings-fab');
+    const settingsSheet   = document.getElementById('settings-sheet');
+    const adBanner        = document.getElementById('ad-banner');
+    const chartFullscreen = document.getElementById('chart-fullscreen');
+    const logFullscreen   = document.getElementById('log-fullscreen');
+    const logFullContent  = document.getElementById('log-full-content');
+    const logContainer    = document.getElementById('log-container');
+    const cameraToggle    = document.getElementById('cameraToggle');
 
-  // ──────────────────────────────────────────────────────────────
-  // Persistent settings
-  // ──────────────────────────────────────────────────────────────
-  let brightnessThreshold = localStorage.getItem('flashSensitivity') !== null ? parseInt(localStorage.getItem('flashSensitivity')) : 30;
-  let audioThreshold      = localStorage.getItem('thunderThreshold') !== null ? parseInt(localStorage.getItem('thunderThreshold')) : 55;
-  let logThreshold        = localStorage.getItem('logCertainty') !== null ? parseInt(localStorage.getItem('logCertainty')) : 30;
-  let useBackCamera       = localStorage.getItem('useBackCamera') !== 'false';
+    // ──────────────────────────────────────────────────────────────
+    // Settings
+    // ──────────────────────────────────────────────────────────────
+    let brightnessThreshold = localStorage.getItem('flashSensitivity') !== null ? parseInt(localStorage.getItem('flashSensitivity')) : 30;
+    let audioThreshold      = localStorage.getItem('thunderThreshold') !== null ? parseInt(localStorage.getItem('thunderThreshold')) : 55;
+    let logThreshold        = localStorage.getItem('logCertainty') !== null ? parseInt(localStorage.getItem('logCertainty')) : 30;
+    let useBackCamera       = localStorage.getItem('useBackCamera') !== 'false';
 
-  cameraToggle.checked = useBackCamera;
+    cameraToggle.checked = useBackCamera;
 
-  document.getElementById('brightnessSlider').value = brightnessThreshold;
-  document.getElementById('brightnessValue').textContent = brightnessThreshold;
-  document.getElementById('audioSlider').value = audioThreshold;
-  document.getElementById('audioValue').textContent = audioThreshold;
-  document.getElementById('logThresholdSlider').value = logThreshold;
-  document.getElementById('logThresholdValue').textContent = logThreshold;
-
-  // Save settings on change
-  document.getElementById('brightnessSlider').oninput = e => {
-    brightnessThreshold = +e.target.value;
+    document.getElementById('brightnessSlider').value = brightnessThreshold;
     document.getElementById('brightnessValue').textContent = brightnessThreshold;
-    localStorage.setItem('flashSensitivity', brightnessThreshold);
-  };
-  document.getElementById('audioSlider').oninput = e => {
-    audioThreshold = +e.target.value;
+    document.getElementById('audioSlider').value = audioThreshold;
     document.getElementById('audioValue').textContent = audioThreshold;
-    localStorage.setItem('thunderThreshold', audioThreshold);
-  };
-  document.getElementById('logThresholdSlider').oninput = e => {
-    logThreshold = +e.target.value;
+    document.getElementById('logThresholdSlider').value = logThreshold;
     document.getElementById('logThresholdValue').textContent = logThreshold;
-    localStorage.setItem('logCertainty', logThreshold);
-  };
-  cameraToggle.onchange = () => {
-    useBackCamera = cameraToggle.checked;
-    localStorage.setItem('useBackCamera', useBackCamera);
-  };
 
-  // ──────────────────────────────────────────────────────────────
-  // Logging – newest first
-  // ──────────────────────────────────────────────────────────────
-  function addLogEntry(msg, certainty) {
-    if (certainty < logThreshold) return;
+    // Save handlers
+    document.getElementById('brightnessSlider').oninput = e => {
+      brightnessThreshold = +e.target.value;
+      document.getElementById('brightnessValue').textContent = brightnessThreshold;
+      localStorage.setItem('flashSensitivity', brightnessThreshold);
+    };
+    document.getElementById('audioSlider').oninput = e => {
+      audioThreshold = +e.target.value;
+      document.getElementById('audioValue').textContent = audioThreshold;
+      localStorage.setItem('thunderThreshold', audioThreshold);
+    };
+    document.getElementById('logThresholdSlider').oninput = e => {
+      logThreshold = +e.target.value;
+      document.getElementById('logThresholdValue').textContent = logThreshold;
+      localStorage.setItem('logCertainty', logThreshold);
+    };
+    cameraToggle.onchange = () => {
+      useBackCamera = cameraToggle.checked;
+      localStorage.setItem('useBackCamera', useBackCamera);
+    };
 
-    const time = new Date().toLocaleTimeString('en-ZA', { hour12: false });
-    const certaintyClass = certainty >= 80 ? 'high' : certainty >= 50 ? 'medium' : 'low';
-    const badgeClass = certaintyClass + '-badge';
+    // ──────────────────────────────────────────────────────────────
+    // Logging – newest first, right border, inverted severity
+    // ──────────────────────────────────────────────────────────────
+    function addLogEntry(msg, certainty) {
+      if (certainty < logThreshold) return;
 
-    let icon = '⚡';
-    if (msg.includes('strike detected')) icon = '🌩️';
-    else if (msg.includes('Flash')) icon = '⚡';
-    else if (msg.includes('Thunder')) icon = '🔊';
+      const time = new Date().toLocaleTimeString('en-ZA', { hour12: false });
+      const certaintyClass = certainty >= 80 ? 'high' : certainty >= 50 ? 'medium' : 'low';
+      const badgeClass = certaintyClass + '-badge';
 
-    const entry = `
-      <div class="log-entry log-certainty-${certaintyClass}">
-        <span class="log-timestamp">[${time}]</span>
-        <span class="log-message">${icon} ${msg}</span>
-        <span class="log-certainty-badge ${badgeClass}">${Math.round(certainty)}%</span>
-      </div>
-    `;
+      let icon = '⚡';
+      if (msg.includes('strike detected')) icon = '🌩️';
+      else if (msg.includes('Flash')) icon = '⚡';
+      else if (msg.includes('Thunder')) icon = '🔊';
 
-    logEntries.unshift(entry); // newest on top
+      const entry = `
+        <div class="log-entry log-certainty-${certaintyClass}">
+          <span class="log-timestamp">[${time}]</span>
+          <span class="log-message">${icon} ${msg}</span>
+          <span class="log-certainty-badge ${badgeClass}">${Math.round(certainty)}%</span>
+        </div>
+      `;
 
-    if (logEntries.length > 200) logEntries.pop();
+      logEntries.unshift(entry);
+      if (logEntries.length > 200) logEntries.pop();
 
-    updateLogDisplays();
-  }
-
-  function updateLogDisplays() {
-    const html = logEntries.join('') || '<div style="color:#a0a0c0; text-align:center; padding:20px;">No events logged yet.</div>';
-
-    if (logContainer) {
-      logContainer.innerHTML = html;
-      logContainer.scrollTop = 0;
+      updateLogDisplays();
     }
 
-    if (logFullContent) {
-      logFullContent.innerHTML = html;
-      logFullContent.scrollTop = 0;
-    }
-  }
+    function updateLogDisplays() {
+      const html = logEntries.join('') || '<div style="color:#a0a0c0; text-align:center; padding:20px;">No events logged yet.</div>';
 
-  // ──────────────────────────────────────────────────────────────
-  // UI toggles
-  // ──────────────────────────────────────────────────────────────
-  function toggleSettings() {
-    settingsSheet.classList.toggle('open');
-    adBanner.style.display = settingsSheet.classList.contains('open') ? 'none' : 'flex';
-  }
-
-  viewLogBtn.onclick = () => {
-    updateLogDisplays();
-    logFullscreen.style.display = 'block';
-    document.querySelector('.main-content').style.display = 'none';
-  };
-
-  document.getElementById('full-log-close').onclick = () => {
-    logFullscreen.style.display = 'none';
-    document.querySelector('.main-content').style.display = '';
-  };
-
-  function clearFullLog() {
-    logEntries = [];
-    updateLogDisplays();
-  }
-
-  // ──────────────────────────────────────────────────────────────
-  // Chart helpers
-  // ──────────────────────────────────────────────────────────────
-  const chartConfig = {
-    type: 'line',
-    data: {
-      labels: sensorData.timestamps,
-      datasets: [
-        { label: 'Brightness', data: sensorData.brightness, borderColor: '#7c5eff', yAxisID: 'y' },
-        { label: 'Audio Peak', data: sensorData.audioLevels, borderColor: '#00d4b4', yAxisID: 'y' },
-        { label: 'Hit', data: sensorData.hits, type: 'scatter', pointStyle: 'triangle', pointRadius: 10, borderColor: '#ff4d6d', backgroundColor: '#ff4d6d', yAxisID: 'y' }
-      ]
-    },
-    options: {
-      scales: {
-        x: { type: 'time', time: { unit: 'minute' } },
-        y: { beginAtZero: true, max: 255 }
-      },
-      plugins: { legend: { display: true, labels: { color: '#e0e0ff' } } },
-      maintainAspectRatio: false
-    }
-  };
-
-  function safeCreateChart(canvasId, config) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas || !canvas.isConnected) return null;
-    return new Chart(canvas, config);
-  }
-
-  function forceChartResize(chart) {
-    if (!chart) return;
-    requestAnimationFrame(() => {
-      chart.resize();
-      chart.update('none');
-    });
-  }
-
-  function initCharts() {
-    if (myChart) myChart.destroy();
-    myChart = safeCreateChart('sensorChart', chartConfig);
-    if (myChart) forceChartResize(myChart);
-  }
-
-  // ──────────────────────────────────────────────────────────────
-  // Monitoring toggle
-  // ──────────────────────────────────────────────────────────────
-  toggleBtn.onclick = async () => {
-    if (!isMonitoring) {
-      status.textContent = "Requesting camera & microphone...";
-      toggleBtn.disabled = true;
-
-      try {
-        const facingMode = useBackCamera ? "environment" : "user";
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode },
-          audio: true
-        });
-        video.srcObject = stream;
-
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioCtx.createMediaStreamSource(stream);
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 2048;
-        source.connect(analyser);
-
-        status.textContent = `Monitoring active (${useBackCamera ? 'back' : 'front'} camera)`;
-        brightnessDisplay.textContent = 'Current Brightness: Calculating...';
-
-        toggleBtn.textContent = "Stop Monitoring";
-        toggleBtn.disabled = false;
-        isMonitoring = true;
-
-        initCharts();
-        setInterval(sampleAndUpdate, 1000);
-        requestAnimationFrame(monitorFrame);
-      } catch (err) {
-        let msg = 'Unknown error';
-        if (err.name === 'NotAllowedError') msg = 'Camera/mic access denied – please allow in browser settings';
-        else if (err.name === 'NotSecureContext') msg = 'Page must be served over HTTPS';
-        else if (err.name === 'NotFoundError') msg = 'No camera/microphone found';
-        status.textContent = `Error: ${msg}`;
-        console.error(err);
-        toggleBtn.disabled = false;
+      if (logContainer) {
+        logContainer.innerHTML = html;
+        logContainer.scrollTop = 0;
       }
-    } else {
-      if (stream) stream.getTracks().forEach(track => track.stop());
-      if (audioCtx) audioCtx.close();
+      if (logFullContent) {
+        logFullContent.innerHTML = html;
+        logFullContent.scrollTop = 0;
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // UI toggles
+    // ──────────────────────────────────────────────────────────────
+    function toggleSettings() {
+      settingsSheet.classList.toggle('open');
+      adBanner.style.display = settingsSheet.classList.contains('open') ? 'none' : 'flex';
+    }
+
+    viewLogBtn.onclick = () => {
+      updateLogDisplays();
+      logFullscreen.style.display = 'block';
+      document.querySelector('.main-content').style.display = 'none';
+    };
+
+    document.getElementById('full-log-close').onclick = () => {
+      logFullscreen.style.display = 'none';
+      document.querySelector('.main-content').style.display = '';
+    };
+
+    function clearFullLog() {
+      logEntries = [];
+      updateLogDisplays();
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Chart helpers
+    // ──────────────────────────────────────────────────────────────
+    const chartConfig = {
+      type: 'line',
+      data: {
+        labels: sensorData.timestamps,
+        datasets: [
+          { label: 'Brightness', data: sensorData.brightness, borderColor: '#7c5eff', yAxisID: 'y' },
+          { label: 'Audio Peak', data: sensorData.audioLevels, borderColor: '#00d4b4', yAxisID: 'y' },
+          { label: 'Hit', data: sensorData.hits, type: 'scatter', pointStyle: 'triangle', pointRadius: 10, borderColor: '#ff4d6d', backgroundColor: '#ff4d6d', yAxisID: 'y' }
+        ]
+      },
+      options: {
+        scales: {
+          x: { type: 'time', time: { unit: 'minute' } },
+          y: { beginAtZero: true, max: 255 }
+        },
+        plugins: { legend: { display: true, labels: { color: '#e0e0ff' } } },
+        maintainAspectRatio: false
+      }
+    };
+
+    function safeCreateChart(canvasId, config) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || !canvas.isConnected) return null;
+      return new Chart(canvas, config);
+    }
+
+    function forceChartResize(chart) {
+      if (!chart) return;
+      requestAnimationFrame(() => {
+        chart.resize();
+        chart.update('none');
+      });
+    }
+
+    function initCharts() {
       if (myChart) myChart.destroy();
+      myChart = safeCreateChart('sensorChart', chartConfig);
+      if (myChart) forceChartResize(myChart);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Monitoring toggle – with throttled analysis
+    // ──────────────────────────────────────────────────────────────
+    toggleBtn.onclick = async () => {
+      if (!isMonitoring) {
+        status.textContent = "Requesting camera & microphone...";
+        toggleBtn.disabled = true;
+
+        try {
+          const facingMode = useBackCamera ? "environment" : "user";
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode },
+            audio: true
+          });
+          video.srcObject = stream;
+
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioCtx.createMediaStreamSource(stream);
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 2048;
+          source.connect(analyser);
+
+          status.textContent = `Monitoring active (${useBackCamera ? 'back' : 'front'} camera)`;
+          brightnessDisplay.textContent = 'Current Brightness: Calculating...';
+
+          toggleBtn.textContent = "Stop Monitoring";
+          toggleBtn.disabled = false;
+          isMonitoring = true;
+
+          initCharts();
+          setInterval(sampleAndUpdate, 1000);
+          analysisInterval = setInterval(monitorFrame, 150); // ← anti-flicker: ~6.7 fps
+        } catch (err) {
+          let msg = 'Unknown error';
+          if (err.name === 'NotAllowedError') msg = 'Camera/mic access denied – please allow in browser settings';
+          else if (err.name === 'NotSecureContext') msg = 'Page must be served over HTTPS';
+          else if (err.name === 'NotFoundError') msg = 'No camera/microphone found';
+          status.textContent = `Error: ${msg}`;
+          console.error(err);
+          toggleBtn.disabled = false;
+        }
+      } else {
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        if (audioCtx) audioCtx.close();
+        if (analysisInterval) clearInterval(analysisInterval);
+        if (myChart) myChart.destroy();
+        if (myChartFull) myChartFull.destroy();
+        recentFlashes = [];
+        lastFlashTime = null;
+        status.textContent = "Monitoring stopped";
+        brightnessDisplay.textContent = 'Current Brightness: —';
+        toggleBtn.textContent = "Start Monitoring";
+        isMonitoring = false;
+      }
+    };
+
+    // ──────────────────────────────────────────────────────────────
+    // Fullscreen graph
+    // ──────────────────────────────────────────────────────────────
+    fullscreenBtn.onclick = () => {
+      chartFullscreen.style.display = 'block';
+      document.querySelector('.main-content').style.display = 'none';
+
       if (myChartFull) myChartFull.destroy();
-      recentFlashes = [];
-      lastFlashTime = null;
-      status.textContent = "Monitoring stopped";
-      brightnessDisplay.textContent = 'Current Brightness: —';
-      toggleBtn.textContent = "Start Monitoring";
-      isMonitoring = false;
-    }
-  };
+      myChartFull = safeCreateChart('sensorChartFull', chartConfig);
 
-  // ──────────────────────────────────────────────────────────────
-  // Fullscreen graph
-  // ──────────────────────────────────────────────────────────────
-  fullscreenBtn.onclick = () => {
-    chartFullscreen.style.display = 'block';
-    document.querySelector('.main-content').style.display = 'none';
+      if (myChartFull) forceChartResize(myChartFull);
+    };
 
-    if (myChartFull) myChartFull.destroy();
-    myChartFull = safeCreateChart('sensorChartFull', chartConfig);
+    document.getElementById('fullscreen-close').onclick = () => {
+      chartFullscreen.style.display = 'none';
+      document.querySelector('.main-content').style.display = '';
 
-    if (myChartFull) forceChartResize(myChartFull);
-  };
+      if (myChartFull) {
+        myChartFull.destroy();
+        myChartFull = null;
+      }
+    };
 
-  document.getElementById('fullscreen-close').onclick = () => {
-    chartFullscreen.style.display = 'none';
-    document.querySelector('.main-content').style.display = '';
+    // ──────────────────────────────────────────────────────────────
+    // Throttled frame analysis (anti-flicker)
+    // ──────────────────────────────────────────────────────────────
+    function monitorFrame() {
+      if (!stream) return;
 
-    if (myChartFull) {
-      myChartFull.destroy();
-      myChartFull = null;
-    }
-  };
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 4) sum += (data[i] + data[i+1] + data[i+2]) / 3;
+      let brightness = Math.round(sum / (data.length / 4));
 
-  // ──────────────────────────────────────────────────────────────
-  // Video brightness detection
-  // ──────────────────────────────────────────────────────────────
-  function monitorFrame() {
-    if (!stream) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    let sum = 0;
-    for (let i = 0; i < data.length; i += 4) sum += (data[i] + data[i+1] + data[i+2]) / 3;
-    let brightness = Math.round(sum / (data.length / 4));
+      brightnessDisplay.textContent = `Current Brightness: ${brightness}`;
 
-    brightnessDisplay.textContent = `Current Brightness: ${brightness}`;
+      if (brightness - prevBrightness > brightnessThreshold && prevBrightness > 20) {
+        recentFlashes.push(Date.now());
+        lastFlashTime = Date.now();
+        const cert = Math.min(60, 20 + (brightness - prevBrightness) / 2);
+        addLogEntry(`Flash detected | Brightness ${brightness}`, cert);
+      }
+      prevBrightness = brightness;
 
-    if (brightness - prevBrightness > brightnessThreshold && prevBrightness > 20) {
-      recentFlashes.push(Date.now());
-      lastFlashTime = Date.now();
-      const cert = Math.min(60, 20 + (brightness - prevBrightness) / 2);
-      addLogEntry(`Flash detected | Brightness ${brightness}`, cert);
-    }
-    prevBrightness = brightness;
-
-    recentFlashes = recentFlashes.filter(t => Date.now() - t < 15000);
-    requestAnimationFrame(monitorFrame);
-  }
-
-  // ──────────────────────────────────────────────────────────────
-  // Audio sampling & lightning detection
-  // ──────────────────────────────────────────────────────────────
-  function sampleAndUpdate() {
-    if (!analyser) return;
-    const now = Date.now();
-    const buffer = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteTimeDomainData(buffer);
-    let maxAudio = 0;
-    for (let v of buffer) maxAudio = Math.max(maxAudio, Math.abs(v - 128));
-
-    const hasRecentFlash = recentFlashes.some(t => now - t <= 15000);
-    const thunderNow = maxAudio > audioThreshold;
-    const isHit = hasRecentFlash && thunderNow;
-
-    let certainty = 0;
-    let msg = '';
-    let distance = '?';
-
-    if (isHit) {
-      const delay = (now - lastFlashTime) / 1000;
-      distance = Math.round(delay / 3);
-      certainty = Math.min(100, 80 + maxAudio / 6);
-      msg = `Lightning strike detected`;
-      addLogEntry(`${msg} • Sound (${maxAudio}) • Distance ~ ${distance} km`, certainty);
-      status.textContent = `Strike ≈ ${distance} km away`;
-    } else if (hasRecentFlash) {
-      certainty = 45;
-      msg = `Flash waiting for thunder sound`;
-      addLogEntry(msg, certainty);
-    } else if (thunderNow) {
-      certainty = Math.min(70, 40 + maxAudio / 5);
-      msg = `Thunder sound detected (no recent flash)`;
-      addLogEntry(msg, certainty);
+      recentFlashes = recentFlashes.filter(t => Date.now() - t < 15000);
     }
 
-    while (sensorData.timestamps.length && now - sensorData.timestamps[0] > 10*60*1000) {
-      sensorData.timestamps.shift();
-      sensorData.brightness.shift();
-      sensorData.audioLevels.shift();
-      sensorData.hits.shift();
-    }
+    // ──────────────────────────────────────────────────────────────
+    // Audio sampling & lightning detection
+    // ──────────────────────────────────────────────────────────────
+    function sampleAndUpdate() {
+      if (!analyser) return;
+      const now = Date.now();
+      const buffer = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteTimeDomainData(buffer);
+      let maxAudio = 0;
+      for (let v of buffer) maxAudio = Math.max(maxAudio, Math.abs(v - 128));
 
-    sensorData.timestamps.push(now);
-    sensorData.brightness.push(prevBrightness);
-    sensorData.audioLevels.push(maxAudio);
-    sensorData.hits.push(isHit ? Math.max(prevBrightness, maxAudio) : null);
+      const hasRecentFlash = recentFlashes.some(t => now - t <= 15000);
+      const thunderNow = maxAudio > audioThreshold;
+      const isHit = hasRecentFlash && thunderNow;
 
-    if (myChart) myChart.update();
-    if (myChartFull && chartFullscreen.style.display === 'block') {
-      forceChartResize(myChartFull);
+      let certainty = 0;
+      let msg = '';
+      let distance = '?';
+
+      if (isHit) {
+        const delay = (now - lastFlashTime) / 1000;
+        distance = Math.round(delay / 3);
+        certainty = Math.min(100, 80 + maxAudio / 6);
+        msg = `Lightning strike detected`;
+        addLogEntry(`${msg} • Sound (${maxAudio}) • Distance ~ ${distance} km`, certainty);
+        status.textContent = `Strike ≈ ${distance} km away`;
+      } else if (hasRecentFlash) {
+        certainty = 45;
+        msg = `Flash waiting for thunder sound`;
+        addLogEntry(msg, certainty);
+      } else if (thunderNow) {
+        certainty = Math.min(70, 40 + maxAudio / 5);
+        msg = `Thunder sound detected (no recent flash)`;
+        addLogEntry(msg, certainty);
+      }
+
+      while (sensorData.timestamps.length && now - sensorData.timestamps[0] > 10*60*1000) {
+        sensorData.timestamps.shift();
+        sensorData.brightness.shift();
+        sensorData.audioLevels.shift();
+        sensorData.hits.shift();
+      }
+
+      sensorData.timestamps.push(now);
+      sensorData.brightness.push(prevBrightness);
+      sensorData.audioLevels.push(maxAudio);
+      sensorData.hits.push(isHit ? Math.max(prevBrightness, maxAudio) : null);
+
+      if (myChart) myChart.update();
+      if (myChartFull && chartFullscreen.style.display === 'block') {
+        forceChartResize(myChartFull);
+      }
     }
-  }
-</script>
+  </script>
 </body>
 </html>
