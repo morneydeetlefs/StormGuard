@@ -18,7 +18,7 @@
       background: linear-gradient(135deg, var(--bg), #1a1a2e);
       color: var(--text);
       min-height: 100vh;
-      padding: 16px 16px 200px 16px; /* extra bottom space */
+      padding: 16px 16px 140px 16px; /* enough for ad + FAB + margin */
       box-sizing: border-box;
     }
     h1 {
@@ -47,19 +47,8 @@
     button:hover { transform: translateY(-1px); box-shadow: 0 6px 25px var(--accent-glow); }
     button:disabled { opacity: 0.5; transform: none; box-shadow: none; }
 
-    #status {
-      font-size: 1.1rem;
-      font-weight: 500;
-      text-align: center;
-      margin: 12px 0;
-      min-height: 1.5em;
-    }
-    #current-brightness {
-      text-align: center;
-      font-size: 1.2rem;
-      margin: 8px 0 20px;
-      color: #a0d2ff;
-    }
+    #status { font-size: 1.1rem; font-weight: 500; text-align: center; margin: 12px 0; min-height: 1.5em; }
+    #current-brightness { text-align: center; font-size: 1.2rem; margin: 8px 0 20px; color: #a0d2ff; }
 
     .card {
       background: var(--card-bg);
@@ -75,7 +64,7 @@
       font-size: 0.82rem;
       color: #a0a0c0;
       text-align: center;
-      margin: 20px 0 180px; /* more room for floating button */
+      margin: 20px 0 120px;
     }
 
     #ad-banner {
@@ -96,13 +85,7 @@
       box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
       transition: opacity 0.3s ease;
     }
-    #settings-sheet.open \~ #ad-banner {
-      display: none; /* hide banner when settings open */
-    }
-    #ad-banner .placeholder-text {
-      opacity: 0.7;
-      font-style: italic;
-    }
+    #ad-banner .placeholder-text { opacity: 0.7; font-style: italic; }
 
     /* Floating settings button */
     #settings-fab {
@@ -120,12 +103,12 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      z-index: 999;
+      z-index: 1100;
       transition: transform 0.2s;
     }
     #settings-fab:hover { transform: scale(1.1); }
 
-    /* Bottom sheet for sliders */
+    /* Settings bottom sheet – highest z-index */
     #settings-sheet {
       position: fixed;
       bottom: 0;
@@ -139,11 +122,9 @@
       box-shadow: 0 -10px 40px rgba(0,0,0,0.6);
       transform: translateY(100%);
       transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-      z-index: 998;
+      z-index: 1200;
     }
-    #settings-sheet.open {
-      transform: translateY(0);
-    }
+    #settings-sheet.open { transform: translateY(0); }
 
     #chart-fullscreen, #log-fullscreen {
       display: none;
@@ -158,6 +139,7 @@
       width: 100%;
       height: calc(100% - 80px) !important;
     }
+
     .close-btn-bottom {
       position: absolute;
       bottom: 20px;
@@ -185,10 +167,7 @@
       opacity: 0.8;
       transition: opacity 0.2s;
     }
-    #clear-log-full-btn:hover {
-      opacity: 1;
-      background: rgba(255,80,80,0.95);
-    }
+    #clear-log-full-btn:hover { opacity: 1; background: rgba(255,80,80,0.95); }
 
     #video, #canvas, #chart-container { display: none; }
   </style>
@@ -198,32 +177,26 @@
 <body>
   <div class="main-content">
     <h1>StormGuard</h1>
-
     <div class="card">
       <button id="toggleBtn">Start Monitoring</button>
       <button id="fullscreen-btn">View Detailed Graph</button>
     </div>
-
     <div id="status">Ready — point camera at the sky</div>
     <div id="current-brightness">Current Brightness: —</div>
-
     <div class="card">
       <button id="view-log-btn">View Log</button>
     </div>
-
     <p id="tips">Real-time lightning detection • Flash-to-thunder distance estimate • Settings saved automatically</p>
-
     <div id="ad-banner">
       <div class="placeholder-text">Sponsored Space – Your ad here</div>
     </div>
 
-    <!-- Floating settings button (toggles open/close) -->
+    <!-- Floating settings button -->
     <div id="settings-fab" onclick="toggleSettings()">⚙</div>
 
     <!-- Bottom sheet for sliders -->
     <div id="settings-sheet">
       <h3 style="margin-top:0; text-align:center;">Detection Sensitivity</h3>
-
       <div class="slider-container">
         <label>Flash Sensitivity <span id="brightnessValue">30</span> (higher = more sensitive)</label>
         <input type="range" id="brightnessSlider" min="10" max="100" value="30" step="5">
@@ -265,6 +238,7 @@
     const viewLogBtn = document.getElementById('view-log-btn');
     const settingsFab = document.getElementById('settings-fab');
     const settingsSheet = document.getElementById('settings-sheet');
+    const adBanner = document.getElementById('ad-banner');
     const chartFullscreen = document.getElementById('chart-fullscreen');
     const logFullscreen = document.getElementById('log-fullscreen');
     const logFullContent = document.getElementById('log-full-content');
@@ -275,13 +249,38 @@
     let myChart = null;
     let myChartFull = null;
     let prevBrightness = 0;
-    let lastStatusUpdate = 0;
-    let zeroCount = 0;
     let lastFlashTime = null;
     let isMonitoring = false;
-
-    // Log entries stored in memory
     let logEntries = [];
+
+    // Load saved settings
+    let brightnessThreshold = localStorage.getItem('flashSensitivity') !== null ? parseInt(localStorage.getItem('flashSensitivity')) : 30;
+    let audioThreshold = localStorage.getItem('thunderThreshold') !== null ? parseInt(localStorage.getItem('thunderThreshold')) : 55;
+    let logThreshold = localStorage.getItem('logCertainty') !== null ? parseInt(localStorage.getItem('logCertainty')) : 30;
+
+    document.getElementById('brightnessSlider').value = brightnessThreshold;
+    document.getElementById('brightnessValue').textContent = brightnessThreshold;
+    document.getElementById('audioSlider').value = audioThreshold;
+    document.getElementById('audioValue').textContent = audioThreshold;
+    document.getElementById('logThresholdSlider').value = logThreshold;
+    document.getElementById('logThresholdValue').textContent = logThreshold;
+
+    // Save settings on change
+    document.getElementById('brightnessSlider').oninput = e => {
+      brightnessThreshold = +e.target.value;
+      document.getElementById('brightnessValue').textContent = brightnessThreshold;
+      localStorage.setItem('flashSensitivity', brightnessThreshold);
+    };
+    document.getElementById('audioSlider').oninput = e => {
+      audioThreshold = +e.target.value;
+      document.getElementById('audioValue').textContent = audioThreshold;
+      localStorage.setItem('thunderThreshold', audioThreshold);
+    };
+    document.getElementById('logThresholdSlider').oninput = e => {
+      logThreshold = +e.target.value;
+      document.getElementById('logThresholdValue').textContent = logThreshold;
+      localStorage.setItem('logCertainty', logThreshold);
+    };
 
     function addLogEntry(msg, certainty) {
       if (certainty < logThreshold) return;
@@ -299,85 +298,47 @@
       if (logEntries.length > 200) logEntries.shift();
     }
 
-    // Load saved settings
-    let brightnessThreshold = localStorage.getItem('flashSensitivity') !== null 
-      ? parseInt(localStorage.getItem('flashSensitivity')) : 30;
-    let audioThreshold = localStorage.getItem('thunderThreshold') !== null 
-      ? parseInt(localStorage.getItem('thunderThreshold')) : 55;
-    let logThreshold = localStorage.getItem('logCertainty') !== null 
-      ? parseInt(localStorage.getItem('logCertainty')) : 30;
-
-    document.getElementById('brightnessSlider').value = brightnessThreshold;
-    document.getElementById('brightnessValue').textContent = brightnessThreshold;
-    document.getElementById('audioSlider').value = audioThreshold;
-    document.getElementById('audioValue').textContent = audioThreshold;
-    document.getElementById('logThresholdSlider').value = logThreshold;
-    document.getElementById('logThresholdValue').textContent = logThreshold;
-
-    document.getElementById('brightnessSlider').oninput = e => {
-      brightnessThreshold = +e.target.value;
-      document.getElementById('brightnessValue').textContent = brightnessThreshold;
-      localStorage.setItem('flashSensitivity', brightnessThreshold);
-    };
-
-    document.getElementById('audioSlider').oninput = e => {
-      audioThreshold = +e.target.value;
-      document.getElementById('audioValue').textContent = audioThreshold;
-      localStorage.setItem('thunderThreshold', audioThreshold);
-    };
-
-    document.getElementById('logThresholdSlider').oninput = e => {
-      logThreshold = +e.target.value;
-      document.getElementById('logThresholdValue').textContent = logThreshold;
-      localStorage.setItem('logCertainty', logThreshold);
-    };
-
-    // Toggle settings sheet with same button
     function toggleSettings() {
       settingsSheet.classList.toggle('open');
+      // Hide ad banner when settings are open (robust UX)
+      if (settingsSheet.classList.contains('open')) {
+        adBanner.style.display = 'none';
+      } else {
+        adBanner.style.display = 'flex';
+      }
     }
 
-    // View full log
     viewLogBtn.onclick = () => {
-      document.getElementById('log-full-content').innerHTML = logEntries.join('') || 'No events logged yet.<br>';
+      logFullContent.innerHTML = logEntries.join('') || 'No events logged yet.<br>';
       logFullscreen.style.display = 'block';
       document.querySelector('.main-content').style.display = 'none';
     };
 
-    // Close full log
     document.getElementById('full-log-close').onclick = () => {
       logFullscreen.style.display = 'none';
       document.querySelector('.main-content').style.display = '';
     };
 
-    // Clear log (only in full-screen)
     function clearFullLog() {
       logEntries = [];
-      document.getElementById('log-full-content').innerHTML = 'Log cleared.<br>';
+      logFullContent.innerHTML = 'Log cleared.<br>';
     }
 
     const flashWindowMs = 15000;
     const historyDuration = 10 * 60 * 1000;
     const sampleInterval = 1000;
-
     let recentFlashes = [];
     let sensorData = { timestamps: [], brightness: [], audioLevels: [], hits: [] };
 
     const chartConfig = {
       type: 'line',
-      data: {
-        labels: sensorData.timestamps,
-        datasets: [
-          { label: 'Brightness', data: sensorData.brightness, borderColor: '#7c5eff', yAxisID: 'y' },
-          { label: 'Audio Peak', data: sensorData.audioLevels, borderColor: '#00d4b4', yAxisID: 'y' },
-          { label: 'Hit', data: sensorData.hits, type: 'scatter', pointStyle: 'triangle', pointRadius: 10, borderColor: '#ff4d6d', backgroundColor: '#ff4d6d', yAxisID: 'y' }
-        ]
-      },
+      data: { labels: sensorData.timestamps, datasets: [
+        { label: 'Brightness', data: sensorData.brightness, borderColor: '#7c5eff', yAxisID: 'y' },
+        { label: 'Audio Peak', data: sensorData.audioLevels, borderColor: '#00d4b4', yAxisID: 'y' },
+        { label: 'Hit', data: sensorData.hits, type: 'scatter', pointStyle: 'triangle', pointRadius: 10, borderColor: '#ff4d6d', backgroundColor: '#ff4d6d', yAxisID: 'y' }
+      ]},
       options: {
-        scales: {
-          x: { type: 'time', time: { unit: 'minute' } },
-          y: { beginAtZero: true, max: 255 }
-        },
+        scales: { x: { type: 'time', time: { unit: 'minute' } }, y: { beginAtZero: true, max: 255 } },
         plugins: { legend: { display: true, labels: { color: '#e0e0ff' } } },
         maintainAspectRatio: false
       }
@@ -394,10 +355,9 @@
       if (!isMonitoring) {
         status.textContent = "Requesting camera & microphone...";
         toggleBtn.disabled = true;
-
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "user" },
+            video: { facingMode: "environment" }, // back camera for sky
             audio: true
           });
           video.srcObject = stream;
@@ -408,7 +368,7 @@
           analyser.fftSize = 2048;
           source.connect(analyser);
 
-          status.textContent = "Monitoring active (front camera)";
+          status.textContent = "Monitoring active";
           brightnessDisplay.textContent = 'Current Brightness: Calculating...';
 
           toggleBtn.textContent = "Stop Monitoring";
@@ -418,35 +378,30 @@
           initCharts();
           setInterval(sampleAndUpdate, sampleInterval);
           requestAnimationFrame(monitorFrame);
-
         } catch (err) {
-          status.textContent = `Error: ${err.name || 'Unknown'} – ${err.message}`;
+          let msg = 'Unknown error';
+          if (err.name === 'NotAllowedError') msg = 'Camera/mic access denied – please allow in browser settings';
+          else if (err.name === 'NotSecureContext') msg = 'Page must be served over HTTPS (try GitHub Pages or localhost)';
+          else if (err.name === 'NotFoundError') msg = 'No camera/microphone found';
+          status.textContent = `Error: ${msg}`;
+          console.error(err);
           toggleBtn.disabled = false;
         }
       } else {
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-          stream = null;
-        }
-        if (audioCtx) {
-          audioCtx.close();
-          audioCtx = null;
-        }
-        if (myChart) { myChart.destroy(); myChart = null; }
-        if (myChartFull) { myChartFull.destroy(); myChartFull = null; }
-
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        if (audioCtx) audioCtx.close();
+        if (myChart) myChart.destroy();
+        if (myChartFull) myChartFull.destroy();
         recentFlashes = [];
         lastFlashTime = null;
-
         status.textContent = "Monitoring stopped";
         brightnessDisplay.textContent = 'Current Brightness: —';
-
         toggleBtn.textContent = "Start Monitoring";
         isMonitoring = false;
       }
     };
 
-    document.getElementById('fullscreen-btn').onclick = () => {
+    fullscreenBtn.onclick = () => {
       chartFullscreen.style.display = 'block';
       document.querySelector('.main-content').style.display = 'none';
       if (myChartFull) myChartFull.update();
@@ -474,7 +429,6 @@
         addLogEntry(`Flash detected | Brightness ${brightness}`, cert);
       }
       prevBrightness = brightness;
-
       recentFlashes = recentFlashes.filter(t => Date.now() - t < flashWindowMs);
       requestAnimationFrame(monitorFrame);
     }
@@ -500,7 +454,7 @@
         distance = Math.round(delay / 3);
         certainty = Math.min(100, 80 + maxAudio / 6);
         msg = `Lightning strike detected`;
-        addLogEntry(`${msg} • Sound \( {maxAudio} • Distance \~ \){distance} km`, certainty);
+        addLogEntry(`${msg} • Sound (${maxAudio}) • Distance ~ ${distance} km`, certainty);
         status.textContent = `Strike ≈ ${distance} km away`;
       } else if (hasRecentFlash) {
         certainty = 45;
