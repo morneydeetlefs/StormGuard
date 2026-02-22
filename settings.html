@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StormGuard – Settings</title>
+  <style>
+    :root { --bg: #0f0f17; --text: #e0e0ff; --accent: #7c5eff; }
+    body {
+      margin: 0;
+      padding: 20px;
+      background: linear-gradient(135deg, var(--bg), #1a1a2e);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    h1 { text-align: center; }
+    .slider-container { margin: 20px 0; }
+    label { display: block; margin-bottom: 8px; font-weight: 500; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    button { margin: 30px auto; display: block; padding: 12px 30px; font-size: 1.1rem; }
+    #ad-banner {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 70px;
+      background: linear-gradient(180deg, rgba(20,20,40,0.9), rgba(10,10,30,0.95));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #aaa;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <h1>Settings</h1>
+
+  <div class="slider-container">
+    <label>Flash Sensitivity <span id="brightnessValue">30</span></label>
+    <input type="range" id="brightnessSlider" min="10" max="100" value="30" step="5">
+  </div>
+
+  <div class="slider-container">
+    <label>Thunder Sensitivity <span id="audioValue">55</span></label>
+    <input type="range" id="audioSlider" min="20" max="120" value="55" step="5">
+  </div>
+
+  <div class="slider-container">
+    <label>Min Certainty to Log <span id="logThresholdValue">30</span>%</label>
+    <input type="range" id="logThresholdSlider" min="0" max="100" value="30" step="5">
+  </div>
+
+  <div style="margin:20px 0;">
+    <label>
+      <input type="checkbox" id="cameraToggle" checked>
+      Use back camera (recommended)
+    </label>
+  </div>
+
+  <button onclick="saveAndBack()">Save & Back</button>
+
+  <div id="ad-banner">
+    <div class="placeholder-text">Sponsored Space – Your ad here</div>
+  </div>
+
+  <script>
+    const brightnessSlider = document.getElementById('brightnessSlider');
+    const audioSlider = document.getElementById('audioSlider');
+    const logThresholdSlider = document.getElementById('logThresholdSlider');
+    const cameraToggle = document.getElementById('cameraToggle');
+
+    brightnessSlider.value = localStorage.getItem('flashSensitivity') || 30;
+    audioSlider.value = localStorage.getItem('thunderThreshold') || 55;
+    logThresholdSlider.value = localStorage.getItem('logCertainty') || 30;
+    cameraToggle.checked = localStorage.getItem('useBackCamera') !== 'false';
+
+    document.getElementById('brightnessValue').textContent = brightnessSlider.value;
+    document.getElementById('audioValue').textContent = audioSlider.value;
+    document.getElementById('logThresholdValue').textContent = logThresholdSlider.value;
+
+    brightnessSlider.oninput = () => document.getElementById('brightnessValue').textContent = brightnessSlider.value;
+    audioSlider.oninput = () => document.getElementById('audioValue').textContent = audioSlider.value;
+    logThresholdSlider.oninput = () => document.getElementById('logThresholdValue').textContent = logThresholdSlider.value;
+
+    function saveAndBack() {
+      localStorage.setItem('flashSensitivity', brightnessSlider.value);
+      localStorage.setItem('thunderThreshold', audioSlider.value);
+      localStorage.setItem('logCertainty', logThresholdSlider.value);
+      localStorage.setItem('useBackCamera', cameraToggle.checked);
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>
