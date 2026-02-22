@@ -292,7 +292,7 @@
   <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const status = document.getElementById('status');
     const brightnessDisplay = document.getElementById('current-brightness');
     const toggleBtn = document.getElementById('toggleBtn');
