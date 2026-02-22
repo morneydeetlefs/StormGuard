@@ -146,8 +146,8 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin: 20px 0;
-      padding: 12px 0;
+      margin: 16px 0;
+      padding: 10px 0;
       border-top: 1px solid rgba(255,255,255,0.1);
       border-bottom: 1px solid rgba(255,255,255,0.1);
     }
@@ -182,17 +182,31 @@
     input:checked + .slider { background-color: var(--accent); }
     input:checked + .slider:before { transform: translateX(22px); }
 
-    #chart-fullscreen, #log-fullscreen {
-      display: none;
+    #chart-container,
+    #chart-fullscreen,
+    #log-fullscreen {
+      visibility: hidden;
+      position: absolute;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+    }
+
+    #chart-fullscreen,
+    #log-fullscreen {
       position: fixed;
       inset: 0;
       background: var(--bg);
       z-index: 9999;
       padding: 12px 12px 80px;
       box-sizing: border-box;
+      visibility: visible; /* controlled by JS */
     }
-    #chart-fullscreen canvas, #log-fullscreen #log-full-content {
-      width: 100%;
+
+    #chart-fullscreen canvas,
+    #log-fullscreen #log-full-content {
+      width: 100% !important;
       height: calc(100% - 80px) !important;
     }
 
@@ -225,7 +239,7 @@
     }
     #clear-log-full-btn:hover { opacity: 1; background: rgba(255,80,80,0.95); }
 
-    #video, #canvas, #chart-container { display: none; }
+    #video, #canvas { display: none; }
 
     @media (min-width: 480px) {
       body { padding: 16px 16px 140px; }
@@ -292,7 +306,10 @@
 
   <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
-  <div id="chart-container"><canvas id="sensorChart"></canvas></div>
+
+  <div id="chart-container">
+    <canvas id="sensorChart"></canvas>
+  </div>
 
   <div id="chart-fullscreen">
     <canvas id="sensorChartFull"></canvas>
@@ -307,7 +324,7 @@
 
   <script>
     // ──────────────────────────────────────────────────────────────
-    // Element references
+    // DOM references
     // ──────────────────────────────────────────────────────────────
     const video           = document.getElementById('video');
     const canvas          = document.getElementById('canvas');
@@ -336,7 +353,7 @@
     let logEntries = [];
 
     // ──────────────────────────────────────────────────────────────
-    // Settings (persistent)
+    // Persistent settings
     // ──────────────────────────────────────────────────────────────
     let brightnessThreshold = localStorage.getItem('flashSensitivity') !== null ? parseInt(localStorage.getItem('flashSensitivity')) : 30;
     let audioThreshold      = localStorage.getItem('thunderThreshold') !== null ? parseInt(localStorage.getItem('thunderThreshold')) : 55;
@@ -352,7 +369,7 @@
     document.getElementById('logThresholdSlider').value = logThreshold;
     document.getElementById('logThresholdValue').textContent = logThreshold;
 
-    // Save changes
+    // Save settings
     document.getElementById('brightnessSlider').oninput = e => {
       brightnessThreshold = +e.target.value;
       document.getElementById('brightnessValue').textContent = brightnessThreshold;
@@ -402,12 +419,19 @@
 
     viewLogBtn.onclick = () => {
       logFullContent.innerHTML = logEntries.join('') || 'No events logged yet.<br>';
-      logFullscreen.style.display = 'block';
+      logFullscreen.style.visibility = 'visible';
+      logFullscreen.style.position = 'fixed';
+      logFullscreen.style.left = '0';
+      logFullscreen.style.width = '100%';
+      logFullscreen.style.height = '100%';
       document.querySelector('.main-content').style.display = 'none';
     };
 
     document.getElementById('full-log-close').onclick = () => {
-      logFullscreen.style.display = 'none';
+      logFullscreen.style.visibility = 'hidden';
+      logFullscreen.style.left = '-9999px';
+      logFullscreen.style.width = '1px';
+      logFullscreen.style.height = '1px';
       document.querySelector('.main-content').style.display = '';
     };
 
@@ -417,34 +441,39 @@
     }
 
     // ──────────────────────────────────────────────────────────────
-    // Chart safety wrapper
+    // Chart helpers
     // ──────────────────────────────────────────────────────────────
     function safeCreateChart(canvasId, config) {
       const canvas = document.getElementById(canvasId);
-      if (!canvas || !canvas.isConnected || canvas.offsetParent === null) {
-        console.warn(`Canvas ${canvasId} not ready/attached/visible — skipping chart creation`);
+      if (!canvas || !canvas.isConnected) {
+        console.warn(`Canvas ${canvasId} not ready`);
         return null;
       }
       return new Chart(canvas, config);
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Core logic constants & data
-    // ──────────────────────────────────────────────────────────────
-    const flashWindowMs = 15000;
-    const historyDuration = 10 * 60 * 1000;
-    const sampleInterval = 1000;
-    let recentFlashes = [];
-    let sensorData = { timestamps: [], brightness: [], audioLevels: [], hits: [] };
+    function forceChartResize(chart) {
+      if (!chart) return;
+      requestAnimationFrame(() => {
+        chart.resize();
+        chart.update('none');
+      });
+    }
+
+    function initCharts() {
+      if (myChart) myChart.destroy();
+      myChart = safeCreateChart('sensorChart', chartConfig);
+      if (myChart) forceChartResize(myChart);
+    }
 
     const chartConfig = {
       type: 'line',
       data: {
-        labels: sensorData.timestamps,
+        labels: [],
         datasets: [
-          { label: 'Brightness', data: sensorData.brightness, borderColor: '#7c5eff', yAxisID: 'y' },
-          { label: 'Audio Peak', data: sensorData.audioLevels, borderColor: '#00d4b4', yAxisID: 'y' },
-          { label: 'Hit', data: sensorData.hits, type: 'scatter', pointStyle: 'triangle', pointRadius: 10, borderColor: '#ff4d6d', backgroundColor: '#ff4d6d', yAxisID: 'y' }
+          { label: 'Brightness', data: [], borderColor: '#7c5eff', yAxisID: 'y' },
+          { label: 'Audio Peak', data: [], borderColor: '#00d4b4', yAxisID: 'y' },
+          { label: 'Hit', data: [], type: 'scatter', pointStyle: 'triangle', pointRadius: 10, borderColor: '#ff4d6d', backgroundColor: '#ff4d6d', yAxisID: 'y' }
         ]
       },
       options: {
@@ -457,13 +486,8 @@
       }
     };
 
-    function initCharts() {
-      if (myChart) myChart.destroy();
-      myChart = safeCreateChart('sensorChart', chartConfig);
-    }
-
     // ──────────────────────────────────────────────────────────────
-    // Monitoring toggle
+    // Monitoring
     // ──────────────────────────────────────────────────────────────
     toggleBtn.onclick = async () => {
       if (!isMonitoring) {
@@ -492,7 +516,7 @@
           isMonitoring = true;
 
           initCharts();
-          setInterval(sampleAndUpdate, sampleInterval);
+          setInterval(sampleAndUpdate, 1000);
           requestAnimationFrame(monitorFrame);
         } catch (err) {
           let msg = 'Unknown error';
@@ -517,26 +541,25 @@
       }
     };
 
-    // ──────────────────────────────────────────────────────────────
-    // Fullscreen graph (cleaner + hardened approach)
-    // ──────────────────────────────────────────────────────────────
     fullscreenBtn.onclick = () => {
-      chartFullscreen.style.display = 'block';
+      chartFullscreen.style.visibility = 'visible';
+      chartFullscreen.style.position = 'fixed';
+      chartFullscreen.style.left = '0';
+      chartFullscreen.style.width = '100%';
+      chartFullscreen.style.height = '100%';
       document.querySelector('.main-content').style.display = 'none';
 
-      // Create fresh chart only after container is visible
       if (myChartFull) myChartFull.destroy();
       myChartFull = safeCreateChart('sensorChartFull', chartConfig);
 
-      if (myChartFull) {
-        myChartFull.update();
-      } else {
-        console.warn('Fullscreen chart creation skipped – canvas not ready');
-      }
+      if (myChartFull) forceChartResize(myChartFull);
     };
 
     document.getElementById('fullscreen-close').onclick = () => {
-      chartFullscreen.style.display = 'none';
+      chartFullscreen.style.visibility = 'hidden';
+      chartFullscreen.style.left = '-9999px';
+      chartFullscreen.style.width = '1px';
+      chartFullscreen.style.height = '1px';
       document.querySelector('.main-content').style.display = '';
 
       if (myChartFull) {
@@ -546,7 +569,7 @@
     };
 
     // ──────────────────────────────────────────────────────────────
-    // Video frame analysis
+    // Frame analysis
     // ──────────────────────────────────────────────────────────────
     function monitorFrame() {
       if (!stream) return;
@@ -565,13 +588,16 @@
         addLogEntry(`Flash detected | Brightness ${brightness}`, cert);
       }
       prevBrightness = brightness;
-      recentFlashes = recentFlashes.filter(t => Date.now() - t < flashWindowMs);
+      recentFlashes = recentFlashes.filter(t => Date.now() - t < 15000);
       requestAnimationFrame(monitorFrame);
     }
 
     // ──────────────────────────────────────────────────────────────
-    // Audio sampling & lightning detection
+    // Audio + lightning detection
     // ──────────────────────────────────────────────────────────────
+    let recentFlashes = [];
+    let sensorData = { timestamps: [], brightness: [], audioLevels: [], hits: [] };
+
     function sampleAndUpdate() {
       if (!analyser) return;
       const now = Date.now();
@@ -580,7 +606,7 @@
       let maxAudio = 0;
       for (let v of buffer) maxAudio = Math.max(maxAudio, Math.abs(v - 128));
 
-      const hasRecentFlash = recentFlashes.some(t => now - t <= flashWindowMs);
+      const hasRecentFlash = recentFlashes.some(t => now - t <= 15000);
       const thunderNow = maxAudio > audioThreshold;
       const isHit = hasRecentFlash && thunderNow;
 
@@ -605,7 +631,7 @@
         addLogEntry(msg, certainty);
       }
 
-      while (sensorData.timestamps.length && now - sensorData.timestamps[0] > historyDuration) {
+      while (sensorData.timestamps.length && now - sensorData.timestamps[0] > 10*60*1000) {
         sensorData.timestamps.shift();
         sensorData.brightness.shift();
         sensorData.audioLevels.shift();
@@ -618,8 +644,8 @@
       sensorData.hits.push(isHit ? Math.max(prevBrightness, maxAudio) : null);
 
       if (myChart) myChart.update();
-      if (myChartFull && chartFullscreen.style.display !== 'none') {
-        myChartFull.update();
+      if (myChartFull && chartFullscreen.style.visibility === 'visible') {
+        forceChartResize(myChartFull);
       }
     }
   </script>
