@@ -409,6 +409,8 @@
     let lastFlashTime = null;
     let isMonitoring = false;
     let logEntries = []; // stores HTML strings, newest first
+    let recentFlashes = [];               // ← moved here
+    let sensorData = { timestamps: [], brightness: [], audioLevels: [], hits: [] };
 
     // ──────────────────────────────────────────────────────────────
     // Settings
